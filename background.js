@@ -23,7 +23,7 @@ async function fetchTweeload(url) {
     var media_id = url.split("i/status/")[1];
     var form1 = new FormData();
     form1.append('action', 'fetch');
-    form1.append('url', 'https://x.com/i/status/2035949333963792770');
+    form1.append('url', 'https://x.com/i/status/'+media_id);
 
     response1 = await fetch('https://convertico.com/twitter-gif-downloader/twitter-gif-downloader.php', {
       method: 'POST',
