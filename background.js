@@ -1,79 +1,119 @@
-async function fetchTweeload(url) {
-  const res = await fetch(url, { redirect: "follow" });
-  const text = await res.text();
-
-  const match = text.match(/(https:\/\/downloads\.acxcdn\.com.+?)(?=")/);
-  if (!match) {
-    throw new Error("No download URL found in response");
+async function convertMp4BlobToGif(blob, fps = 10, quality = 10, width = 0) {
+  // ensure the offscreen document exists
+  const offscreenUrl = "offscreen.html";
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: ["OFFSCREEN_DOCUMENT"],
+    documentUrls: [chrome.runtime.getURL(offscreenUrl)]
+  });
+  if (!contexts.length) {
+    await chrome.offscreen.createDocument({
+      url: offscreenUrl,
+      reasons: ["DOM_PARSER"],
+      justification: "Convert MP4 video frames to GIF using canvas and video elements"
+    });
   }
 
-  const downloadUrl = match[0];
-
-  const file = await fetch(downloadUrl, { method: "GET" });
-  const disposition = file.headers.get("content-disposition") || "";
-  const nameMatch = disposition.match(/filename=["']?(.+?)["']?(?:;|$)/);
-  const originalName = nameMatch ? nameMatch[1].trim() : `${Date.now()}.mp4`;
-  const filename = `twittervideoswoohoo/${originalName}`;
-
-  var isgif = false;
-  if (text.includes('</div></div></div><table><tr><th>Resolution</th><th>Download</th></tr><tr><td>Unknown</td><td><a download class="btn download__item__info__actions__button" href="') && filename.endsWith(".mp4")){
-    isgif = true;
-  }
-  if(isgif){
-    var media_id = url.split("i/status/")[1];
-    var form1 = new FormData();
-    form1.append('action', 'fetch');
-    form1.append('url', 'https://x.com/i/status/'+media_id);
-
-    response1 = await fetch('https://convertico.com/twitter-gif-downloader/twitter-gif-downloader.php', {
-      method: 'POST',
-      body: form1
-    });
-    var parsed = JSON.parse(await response1.text());
-    console.log(parsed);
-
-
-    var form2 = new FormData();
-    form2.append('action', 'convert_to_gif');
-    form2.append('video_url', parsed.media[0].url);
-    form2.append('filename', "twitter-gif-"+media_id);
-    form2.append('fps', 20);
-    form2.append('width', 800);
-    form2.append('lossy', 80);
-
-    response2 = await fetch('https://convertico.com/twitter-gif-downloader/twitter-gif-downloader.php', {
-      method: 'POST',
-      body: form2
-    });
-
-    parsed = JSON.parse(await response2.text());
-    console.log(parsed);
-    chrome.downloads.download({ url: "https://convertico.com/twitter-gif-downloader/"+parsed.file_url, filename: parsed.filename });
-    
-  }else{
-
-    const blob = await file.blob();
+  // read blob as data URL to pass via messaging
+  const dataUrl = await new Promise((resolve) => {
     const reader = new FileReader();
-
-    reader.onloadend = () => {
-      chrome.downloads.download({ url: reader.result, filename: filename });
-    };
+    reader.onloadend = () => resolve(reader.result);
     reader.readAsDataURL(blob);
+  });
+
+  // send to offscreen document for conversion
+  const response = await chrome.runtime.sendMessage({
+    type: "CONVERT_MP4_TO_GIF",
+    dataUrl,
+    fps,
+    quality,
+    width
+  });
+
+  if (response.error) throw new Error(response.error);
+  return response.gifDataUrl;
+}
+
+async function downloadFileUrl(responsegraphql){
+  try{
+    responsegraphql.data.tweet_result_by_rest_id.result.legacy.entities.media.forEach(async (element) => {
+      if(element.type=="photo"){
+        filename = element.media_url_https.split("/media/")[1];
+        const file = await fetch(element.media_url_https, { method: "GET" });
+        const blob = await file.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          chrome.downloads.download({ url: reader.result, filename: filename });
+        };
+        reader.readAsDataURL(blob);
+      }else{
+          isgif = element.video_info.variants[1] ? false : true;
+          filename = 'twittervideoswoohoo/' + (element.video_info.variants[1] ? element.video_info.variants[1].url.match(/(?<=.+?x.+?\/).+?\..+?(?=\?)/)[0] : element.video_info.variants[0].url.split("tweet_video/")[1]);
+          
+          if(!isgif){
+            const file = await fetch(element.video_info.variants[element.video_info.variants.length - 1].url, { method: "GET" });
+            const blob = await file.blob();
+            const reader = new FileReader();
+
+            reader.onloadend = () => {
+              chrome.downloads.download({ url: reader.result, filename: filename });
+            };
+            reader.readAsDataURL(blob)
+        }else{
+          filename = filename.replace(".mp4", '.gif');
+          const file = await fetch(element.video_info.variants[element.video_info.variants.length - 1].url, { method: "GET" });
+          const blob = await file.blob();
+          const gifDataUrl = await convertMp4BlobToGif(blob);
+          chrome.downloads.download({ url: gifDataUrl, filename: filename });
+        };
+      }
+      });
+  }catch(e){
+    responsegraphql.data.tweet_result_by_rest_id.result.quoted_tweet_results.result.legacy.entities.media.forEach(async (element) => {
+      if(element.type=="photo"){
+        filename = element.media_url_https.split("/media/")[1];
+        const file = await fetch(element.media_url_https, { method: "GET" });
+        const blob = await file.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          chrome.downloads.download({ url: reader.result, filename: filename });
+        };
+        reader.readAsDataURL(blob);
+      }else{
+          isgif = element.video_info.variants[1] ? false : true;
+          filename = 'twittervideoswoohoo/' + (element.video_info.variants[1] ? element.video_info.variants[1].url.match(/(?<=.+?x.+?\/).+?\..+?(?=\?)/)[0] : element.video_info.variants[0].url.split("tweet_video/")[1]);
+          if(!isgif){
+          const file = await fetch(element.video_info.variants[element.video_info.variants.length - 1].url, { method: "GET" });
+          const blob = await file.blob();
+          const reader = new FileReader();
+
+          reader.onloadend = () => {
+            chrome.downloads.download({ url: reader.result, filename: filename });
+          };
+          reader.readAsDataURL(blob);
+        }else{
+          filename = filename.replace(".mp4", '.gif');
+          const file = await fetch(element.video_info.variants[element.video_info.variants.length - 1].url, { method: "GET" });
+          const blob = await file.blob();
+          const gifDataUrl = await convertMp4BlobToGif(blob);
+          chrome.downloads.download({ url: gifDataUrl, filename: filename });
+        }
+      }
+      });
   }
-
-
   return 1;
+
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type !== "FETCH_TWEELOAD") return true;
+  if(msg.type == "DOWNLOAD_FILE_URL"){
+    downloadFileUrl(msg.responsegraphql)
+      .then((result) => sendResponse(result))
+      .catch((err) => {
+        console.log(err);
+        sendResponse({ error: err.message });
+      });;
+  }
 
-  fetchTweeload(msg.url)
-    .then((result) => sendResponse(result))
-    .catch((err) => {
-      console.log(err);
-      sendResponse({ error: err.message });
-    });
-
+    
   return true;
 });
