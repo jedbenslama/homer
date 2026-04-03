@@ -3,7 +3,7 @@
   "name": "Homer Downloader",
   "version": "1.0",
   "description": "Download X-Videos ;)",
-  "permissions": ["downloads"],
+  "permissions": ["downloads", "offscreen"],
   "host_permissions": ["https://tweeload.com/*", "<all_urls>"],
   "content_scripts": [
     {
