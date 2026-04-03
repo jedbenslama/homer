@@ -37,7 +37,7 @@ async function downloadFileUrl(responsegraphql){
   try{
     responsegraphql.data.tweet_result_by_rest_id.result.legacy.entities.media.forEach(async (element) => {
       if(element.type=="photo"){
-        filename = element.media_url_https.split("/media/")[1];
+        filename = "twittervideoswoohoo/" + element.media_url_https.split("/media/")[1];
         const file = await fetch(element.media_url_https, { method: "GET" });
         const blob = await file.blob();
         const reader = new FileReader();
